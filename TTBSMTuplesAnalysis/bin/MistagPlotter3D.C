@@ -19,7 +19,7 @@ void MistagPlotter(TString outfileName) {
 
 
 
-	TString filenames[3] = { "Oct7_mistag_data.root", "FINAL/Mar26_ttjets7_mistag.root", "FINAL/Mar26_ttjets10_mistag.root"};
+	TString filenames[3] = { "Apr17_data_mistag.root", "Apr17_ttjets7_mistag.root", "Apr17_ttjets10_mistag.root"};
 	
 	
 	
@@ -164,11 +164,10 @@ void MistagPlotter(TString outfileName) {
 			float ptWeight = 1.0;
 			if (genTopPt1 > 400) genTopPt1 = 400;
 			if (genTopPt2 > 400) genTopPt2 = 400;
-			cout << genTopPt1 << "   " << genTopPt2 << endl;	
 			
 			if (x < 0.5){
 			
-				if (jet1MinMass < 30.0) {
+				if (jet1MinMass < 30.0 && jet1BTag > 0.679) {
 		//		if (jet2BTag < 0.244) {			
 					topProbePt[i]->Fill(ptMap(jet2Pt), bMap(jet2BTag), tauMap(jet2tau32), ptWeight);
 
@@ -187,7 +186,7 @@ void MistagPlotter(TString outfileName) {
 			}
 			else {
 			
-				if (jet2MinMass < 30.0) {
+				if (jet2MinMass < 30.0 && jet2BTag > 0.679) {
 		//		if (jet1BTag < 0.244){	
 					topProbePt[i]->Fill(ptMap(jet1Pt), bMap(jet1BTag), tauMap(jet1tau32), ptWeight);
 					topProbe1D[int(bMap(jet1BTag))][int(tauMap(jet1tau32))][i]->Fill(jet1Pt);

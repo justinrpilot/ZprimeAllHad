@@ -21,8 +21,8 @@ void TreeFiller(string inFiles, string outFile, string histName) {
 	
 	
 	float puWeight, jet1Eta, jet2Eta, deltaY, genTopPt1, genTopPt2, jet1Mass, jet2Mass, jet1MinMass, jet2MinMass, jet1BDisc, jet2BDisc, jet1SubjetMaxBDisc, jet2SubjetMaxBDisc,
-			jet1tau32, jet2tau32, jet1Pt, jet2Pt, jetPtForMistag, mttMass, mttMassPred, mistagWt, mistagWtErr, mistagWtAll, mistagWtNsubAll, mistagWtNsub, NNoutput, ptReweight, cutflow, index, trigWt;
-	int jet1NSubjets, jet2NSubjets, npv;
+			jet1tau32, jet2tau32, jet1Pt, jet2Pt, jet1bSF, jet2bSF, jet1bSFErrUp, jet2bSFErrUp, jet1bSFErrDn, jet2bSFErrDn, jetPtForMistag, mttMass, mttMassPred, mistagWt, mistagWtErr, mistagWtAll, mistagWtNsubAll, mistagWtNsub, NNoutput, ptReweight, cutflow, index, trigWt;
+	int jet1NSubjets, jet2NSubjets, jet1Parton, jet2Parton, npv;
 		
 	origFiles->SetBranchAddress("npv", &npv);
 	origFiles->SetBranchAddress("jet1Eta", &jet1Eta);
@@ -50,7 +50,9 @@ void TreeFiller(string inFiles, string outFile, string histName) {
 	origFiles->SetBranchAddress("NNoutput", &NNoutput);
 	origFiles->SetBranchAddress("mistagWt", &mistagWt);
 	origFiles->SetBranchAddress("genTopPt1", &genTopPt1);	
-	origFiles->SetBranchAddress("genTopPt2", &genTopPt2);	
+	origFiles->SetBranchAddress("genTopPt2", &genTopPt2);
+	origFiles->SetBranchAddress("jet1Parton", &jet1Parton);
+	origFiles->SetBranchAddress("jet2Parton", &jet2Parton);	
 	origFiles->SetBranchAddress("trigWt", &trigWt);
 	
 	TFile *newFile = new TFile(outFile.c_str(), "RECREATE");
@@ -60,6 +62,12 @@ void TreeFiller(string inFiles, string outFile, string histName) {
 	newTree->Branch("mistagWtAll", &mistagWtAll, "mistagWtAll/F");
 	newTree->Branch("ptReweight", &ptReweight, "ptReweight/F");
 	newTree->Branch("puWeight", &puWeight, "puWeight/F");
+	newTree->Branch("jet1bSF", &jet1bSF, "jet1bSF/F");
+	newTree->Branch("jet2bSF", &jet2bSF, "jet2bSF/F");
+	newTree->Branch("jet1bSFErrUp", &jet1bSFErrUp, "jet1bSFErrUp/F");
+	newTree->Branch("jet2bSFErrUp", &jet2bSFErrUp, "jet2bSFErrUp/F");
+	newTree->Branch("jet1bSFErrDn", &jet1bSFErrDn, "jet1bSFErrDn/F");
+	newTree->Branch("jet2bSFErrDn", &jet2bSFErrDn, "jet2bSFErrDn/F");
 	newTree->Branch("mistagWtErr", &mistagWtErr, "mistagWtErr/F");
 
 	newTree->SetBranchAddress("mistagWtNsub", &mistagWtNsub);
@@ -91,7 +99,7 @@ void TreeFiller(string inFiles, string outFile, string histName) {
 	//TFile *mistagFileLow = new TFile("notCSVL_notCSVM_mistag.root");
 	//TFile *mistagFileMed = new TFile("CSVL_notCSVM_mistag.root");
 	//TFile *mistagFileHi = new TFile("CSVM_mistag.root");
-	TFile *mistagFile = new TFile("Mar26_mistag.root");//data_AllBscore_mistag_Dec16.root");
+	TFile *mistagFile = new TFile("Jul3_mistag.root");//data_AllBscore_mistag_Dec16.root");
 	histName = "MISTAG_RATE_SUB_TTBAR_Inclusive";
 	TFile *triggerFile = new TFile("trigger_weights.root");
 	TH1F *triggerHist = (TH1F *) triggerFile->Get("triggerHist");
@@ -116,7 +124,27 @@ void TreeFiller(string inFiles, string outFile, string histName) {
 			if (genTopPt2 > 400) genTopPt2 = 400;
 			//NNoutput =  reader->EvaluateMVA("MLP");
 			ptReweight = sqrt( exp(0.156 - 0.00137*genTopPt1)*exp(0.156 - 0.00137*genTopPt2) );			
+		
 			
+			jet1bSF = 1.0;
+			jet1bSFErrUp = 1.0;
+			jet1bSFErrDn = 1.0;
+			jet2bSF = 1.0;
+			jet2bSFErrUp = 1.0;
+			jet2bSFErrDn = 1.0;
+
+			if (jet1BDisc > 0.679){
+				jet1bSF = findBSF(jet1Pt, jet1Eta, jet1Parton, 0);
+				jet1bSFErrUp = findBSF(jet1Pt, jet1Eta, jet1Parton, 1);
+				jet1bSFErrDn = findBSF(jet1Pt, jet1Eta, jet1Parton, -1);
+			}
+			if (jet2BDisc > 0.679){
+				jet2bSF = findBSF(jet2Pt, jet2Eta, jet2Parton, 0);
+				jet2bSFErrUp = findBSF(jet2Pt, jet2Eta, jet2Parton, 1);
+				jet2bSFErrDn = findBSF(jet2Pt, jet2Eta, jet2Parton, -1);
+			}
+
+	
 			if (index == 1) {
 				
 				float bScore = -9.99;
@@ -157,6 +185,64 @@ void TreeFiller(string inFiles, string outFile, string histName) {
 	newFile->Close();
 	
 }
+
+float findBSF(float pt, float eta, float flavor, int variation){
+
+	float sf = 0.0;
+	float sf_err = 0.0;
+	float sf_up = 0.0;
+	float sf_dn = 0.0;
+
+	if (abs(flavor) == 5){
+	
+		sf = (0.939158+(0.000158694*pt))+(-2.53962e-07*(pt*pt));
+		if (pt < 500) sf_err = 0.0415054;
+		else if (pt < 600) sf_err = 0.0740561;
+		else if (pt < 800) sf_err = 0.0598311;
+		else sf_err = 2*0.0598311;
+		sf_up = sf+sf_err;
+		sf_dn = sf-sf_err;
+	}
+
+	else if (abs(flavor) == 4){
+		sf = (0.939158+(0.000158694*pt))+(-2.53962e-07*(pt*pt));
+		if (pt < 500) sf_err = 2*0.0415054;
+                else if (pt < 600) sf_err = 2*0.0740561;
+                else if (pt < 800) sf_err = 2*0.0598311;
+                else sf_err = 2*2*0.0598311;
+		sf_up = sf+sf_err;
+		sf_dn = sf-sf_err;
+	}
+	else {
+
+		float x = pt;
+		if (abs(eta) < 0.8){
+
+			sf = ((1.07541+(0.00231827*x))+(-4.74249e-06*(x*x)))+(2.70862e-09*(x*(x*x)));
+			sf_dn = ((0.964527+(0.00149055*x))+(-2.78338e-06*(x*x)))+(1.51771e-09*(x*(x*x)));
+			sf_up = ((1.18638+(0.00314148*x))+(-6.68993e-06*(x*x)))+(3.89288e-09*(x*(x*x)));
+		}
+		else if (abs(eta) < 1.6){
+			
+			sf = ((1.05613+(0.00114031*x))+(-2.56066e-06*(x*x)))+(1.67792e-09*(x*(x*x)));
+			sf_dn = ((0.946051+(0.000759584*x))+(-1.52491e-06*(x*x)))+(9.65822e-10*(x*(x*x)));
+			sf_up = ((1.16624+(0.00151884*x))+(-3.59041e-06*(x*x)))+(2.38681e-09*(x*(x*x)));
+		}
+		else if (abs(eta) < 2.4){
+		
+			sf = ((1.05625+(0.000487231*x))+(-2.22792e-06*(x*x)))+(1.70262e-09*(x*(x*x)));
+			sf_dn = ((0.956736+(0.000280197*x))+(-1.42739e-06*(x*x)))+(1.0085e-09*(x*(x*x)));
+			sf_up = ((1.15575+(0.000693344*x))+(-3.02661e-06*(x*x)))+(2.39752e-09*(x*(x*x)));
+		}
+
+	}
+
+	if (variation == 1) return sf_up;
+	if (variation == -1) return sf_dn;
+	if (variation == 0) return sf;
+
+}
+
 	
 float ptMap(float pt){
 
